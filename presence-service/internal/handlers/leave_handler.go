@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"github.com/genryusaishigikuni/messenger/presence-service/internal/broadcaster"
 	"net/http"
 
 	"github.com/genryusaishigikuni/messenger/presence-service/internal/memory"
@@ -21,14 +22,27 @@ func LeaveHandler(store *memory.PresenceStore, authServiceURL string) http.Handl
 			return
 		}
 
-		// Possibly parse request body if needed
 		var req leaveRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			// We don't really need info from body for now
-		}
+		_ = json.NewDecoder(r.Body).Decode(&req) // not needed, no fields currently
 
+		// Get user presence before removing
+		presence := store.GetPresence(userID)
+
+		// Remove user from presence store
 		store.SetOffline(userID)
+
+		// Broadcast the event to the gateway or other listeners
+		// If we knew the channel, use presence.ChannelID, else 0
+		var channelID int
+		if presence != nil {
+			channelID = presence.ChannelID
+		}
+		broadcaster.BroadcastEvent("user_left", userID, channelID)
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message":"user left"}`))
+		_, err = w.Write([]byte(`{"message":"user left"}`))
+		if err != nil {
+			return
+		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	_ "errors"
 	_ "fmt"
+	"github.com/genryusaishigikuni/messenger/presence-service/internal/broadcaster"
 	"net/http"
 	_ "os"
 	_ "strings"
@@ -36,10 +37,15 @@ func JoinHandler(store *memory.PresenceStore, authServiceURL string) http.Handle
 			return
 		}
 
-		// Mark user as online in the given channel
 		store.SetOnline(userID, req.ChannelID)
 
+		// Broadcast the event to the gateway or other listeners
+		broadcaster.BroadcastEvent("user_joined", userID, req.ChannelID)
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message":"user joined"}`))
+		_, err = w.Write([]byte(`{"message":"user joined"}`))
+		if err != nil {
+			return
+		}
 	}
 }

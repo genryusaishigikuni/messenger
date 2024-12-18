@@ -1,9 +1,9 @@
-FROM golang:1.20-alpine as builder
+FROM golang:1.23.4 as builder
 WORKDIR /app
 COPY . .
 RUN go mod tidy && go build -o auth-service ./cmd/auth
 
-FROM alpine:3.18
+FROM ubuntu:24.04
 WORKDIR /app
 COPY --from=builder /app/auth-service .
 COPY migrations ./migrations

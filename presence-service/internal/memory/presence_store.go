@@ -42,3 +42,17 @@ func (s *PresenceStore) GetAll() []models.Presence {
 	}
 	return list
 }
+
+func (s *PresenceStore) GetPresence(userID int) *models.Presence {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	p, ok := s.presence[userID]
+	if !ok {
+		return nil
+	}
+	return &models.Presence{
+		UserID:    p.UserID,
+		ChannelID: p.ChannelID,
+		Online:    p.Online,
+	}
+}

@@ -1,0 +1,56 @@
+services:
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    environment:
+      DATABASE_PATH: "/data/auth.db"
+      JWT_SECRET: "JWT_SECRET"
+      AUTH_SERVICE_PORT: "8082"
+    ports:
+      - "8082:8082"
+    volumes:
+      - auth_data:/data
+    command: ["./auth-service"]
+
+  message-service:
+    build: ./message-service
+    container_name: message-service
+    environment:
+      DATABASE_PATH: "/data/messages.db"
+      SERVER_PORT: "8081"
+    ports:
+      - "8081:8081"
+    volumes:
+      - message_data:/data
+    command: ["./message-service"]
+
+  presence-service:
+    build: ./presence-service
+    container_name: presence-service
+    environment:
+      SERVER_PORT: "8083"
+      AUTH_SERVICE_URL: "http://auth-service:8082"
+    ports:
+      - "8083:8083"
+    command: ["./presence-service"]
+    depends_on:
+      - auth-service
+
+  gateway-service:
+    build: ./gateway-service
+    container_name: gateway-service
+    environment:
+      AUTH_SERVICE_URL: "http://auth-service:8082"
+      MESSAGE_SERVICE_URL: "http://message-service:8081"
+      SERVER_PORT: "8080"
+    ports:
+      - "8080:8080"
+    command: ["./gateway-service"]
+    depends_on:
+      - auth-service
+      - message-service
+      - presence-service
+
+volumes:
+  auth_data:
+  message_data:
