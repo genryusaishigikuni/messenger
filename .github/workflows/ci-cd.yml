@@ -1,0 +1,67 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches:
+      - master  # Run the workflow on pushes to the `master` branch
+  pull_request:
+    branches:
+      - master  # Run on PRs targeting the `master` branch
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Docker
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: Build and Test Each Service
+      - name: Build and test services
+        run: |
+          docker compose -f docker-compose.yml up --build --detach
+          sleep 10  # Wait for services to start
+          curl -f http://localhost:8082/api/auth/validate || exit 1
+          curl -f http://localhost:8081/api/channels || exit 1
+          curl -f http://localhost:8083/api/presence || exit 1
+
+      # Step 4: Push Docker Images (Optional)
+      - name: Log in to Docker Hub
+        if: github.ref == 'refs/heads/master'
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push images to Docker Hub
+        if: github.ref == 'refs/heads/master'
+        run: |
+          docker tag messenger-auth-service ${{ secrets.DOCKER_USERNAME }}/messenger-auth-service:latest
+          docker tag messenger-message-service ${{ secrets.DOCKER_USERNAME }}/messenger-message-service:latest
+          docker tag messenger-presence-service ${{ secrets.DOCKER_USERNAME }}/messenger-presence-service:latest
+          docker tag messenger-gateway-service ${{ secrets.DOCKER_USERNAME }}/messenger-gateway-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/messenger-auth-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/messenger-message-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/messenger-presence-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/messenger-gateway-service:latest
+
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    needs: test-and-build
+    steps:
+      # Deployment steps (example for SSH)
+      - name: Deploy to server
+        run: |
+          ssh -i /path/to/private_key user@server_address <<EOF
+          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-auth-service:latest
+          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-message-service:latest
+          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-presence-service:latest
+          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-gateway-service:latest
+          docker compose up --detach
+          EOF
