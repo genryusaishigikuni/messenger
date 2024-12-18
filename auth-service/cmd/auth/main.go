@@ -41,8 +41,20 @@ func main() {
 	r.HandleFunc("/api/auth/login", handlers.LoginHandler(db, cfg.JWTSecret)).Methods("POST")
 	r.HandleFunc("/api/auth/validate", handlers.ValidateHandler(cfg.JWTSecret)).Methods("GET")
 
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+		if req.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		r.ServeHTTP(w, req)
+	})
+
 	log.Printf("Auth service running on port %s", cfg.ServerPort)
-	if err := http.ListenAndServe(":"+cfg.ServerPort, r); err != nil {
+	if err := http.ListenAndServe(":"+cfg.ServerPort, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

@@ -3,27 +3,28 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 )
 
 func RunMigrations(db *sql.DB, migrationsDir string) error {
-	files, err := ioutil.ReadDir(migrationsDir)
+	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return err
 	}
 
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".sql") {
-			path := migrationsDir + "/" + file.Name()
+	for _, entry := range entries {
+		// Ensure it's a file (not a directory) and ends with .sql
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			path := migrationsDir + "/" + entry.Name()
 			content, err := os.ReadFile(path)
 			if err != nil {
 				return err
 			}
+
 			_, err = db.Exec(string(content))
 			if err != nil {
-				return fmt.Errorf("failed to run migration %s: %v", file.Name(), err)
+				return fmt.Errorf("failed to run migration %s: %v", entry.Name(), err)
 			}
 		}
 	}
