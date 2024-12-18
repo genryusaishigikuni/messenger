@@ -26,7 +26,21 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up --build --detach
           sleep 10  # Wait for services to start
-          curl -f http://localhost:8082/api/auth/validate || exit 1
+
+          # Register a test user
+          curl -X POST -H "Content-Type: application/json" \
+            -d '{"username": "test", "password": "test"}' \
+            http://localhost:8082/api/auth/register
+
+          # Login to get a token
+          TOKEN=$(curl -X POST -H "Content-Type: application/json" \
+            -d '{"username": "test", "password": "test"}' \
+            http://localhost:8082/api/auth/login | jq -r .token)
+
+          # Validate the token
+          curl -H "Authorization: Bearer $TOKEN" http://localhost:8082/api/auth/validate
+
+          # Test other endpoints
           curl -f http://localhost:8081/api/channels || exit 1
           curl -f http://localhost:8083/api/presence || exit 1
 
