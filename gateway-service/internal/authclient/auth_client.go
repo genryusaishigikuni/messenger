@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/genryusaishigikuni/messenger/gateway-service/pkg/utils"
@@ -19,6 +20,25 @@ type validateResponse struct {
 }
 
 // ValidateUserFromRequest validates a user from the Authorization header of a request.
+func ValidateUserFromRequest(r *http.Request, authURL string) (int, error) {
+	utils.Info("Starting user validation from request header")
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		utils.Error("No authorization header provided")
+		return 0, errors.New("no authorization header")
+	}
+
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		utils.Error("Invalid authorization header format")
+		return 0, errors.New("invalid authorization header format")
+	}
+
+	token := parts[1]
+	utils.Info("Authorization header extracted successfully")
+
+	return ValidateToken(token, authURL)
+}
 
 // ValidateToken validates a token with the Auth Service.
 func ValidateToken(token, authURL string) (int, error) {
