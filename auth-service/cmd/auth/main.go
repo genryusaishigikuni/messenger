@@ -2,9 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"log"
 	"net/http"
-	_ "os"
 
 	"github.com/genryusaishigikuni/messenger/auth-service/internal/handlers"
 	"github.com/genryusaishigikuni/messenger/auth-service/internal/storage"
@@ -14,26 +12,32 @@ import (
 
 func main() {
 	// Load config
+	utils.Info("Loading configuration...")
 	cfg := utils.LoadConfig()
 
 	// Initialize DB
+	utils.Info("Initializing database...")
 	db, err := storage.InitDB(cfg.DatabasePath)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		utils.Error("Failed to initialize database: " + err.Error())
+		panic(err)
 	}
 	defer func(db *sql.DB) {
 		err := db.Close()
 		if err != nil {
-			log.Fatalf("Failed to close database connection: %v", err)
+			utils.Error("Failed to close database connection: " + err.Error())
 		}
 	}(db)
 
 	// Run migrations (simple approach)
+	utils.Info("Running database migrations...")
 	if err := storage.RunMigrations(db, "./migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		utils.Error("Failed to run migrations: " + err.Error())
+		panic(err)
 	}
 
 	// Prepare router
+	utils.Info("Setting up routes...")
 	r := mux.NewRouter()
 
 	// Handlers
@@ -53,8 +57,8 @@ func main() {
 		r.ServeHTTP(w, req)
 	})
 
-	log.Printf("Auth service running on port %s", cfg.ServerPort)
+	utils.Info("Starting Auth service on port " + cfg.ServerPort)
 	if err := http.ListenAndServe(":"+cfg.ServerPort, handler); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		utils.Error("Server failed: " + err.Error())
 	}
 }
