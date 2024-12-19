@@ -69,6 +69,10 @@ jobs:
         run: |
           echo $HEROKU_API_KEY | heroku auth:token
 
+      - name: Set Heroku App Stack
+        run: |
+          heroku stack:set container -a ${{ secrets.HEROKU_APP_NAME }}
+
       - name: Deploy to Heroku
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
