@@ -56,12 +56,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: test-and-build
     steps:
-      - name: Deploy to server
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Heroku CLI
         run: |
-          ssh -i /path/to/private_key user@server_address <<EOF
-          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-auth-service:latest
-          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-message-service:latest
-          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-presence-service:latest
-          docker pull ${{ secrets.DOCKER_USERNAME }}/messenger-gateway-service:latest
-          docker compose up --detach
-          EOF
+          curl https://cli-assets.heroku.com/install.sh | sh
+
+      - name: Log in to Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          echo $HEROKU_API_KEY | heroku auth:token
+
+      - name: Deploy to Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          heroku container:login
+          heroku container:push web --app ${{ secrets.HEROKU_APP_NAME }}
+          heroku container:release web --app ${{ secrets.HEROKU_APP_NAME }}
