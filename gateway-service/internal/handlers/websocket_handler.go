@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"github.com/genryusaishigikuni/messenger/gateway-service/internal/authclient"
 	"github.com/genryusaishigikuni/messenger/gateway-service/internal/messageclient"
+	"github.com/genryusaishigikuni/messenger/gateway-service/pkg/utils"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/http"
+	"strconv"
 )
 
 type IncomingMessage struct {
@@ -22,38 +23,49 @@ var upgraded = websocket.Upgrader{
 
 func WebSocketHandler(manager *ConnectionManager, authURL, messageURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Incoming WS connection request")
+		utils.Info("Incoming WebSocket connection request")
+
+		// Extract token from query
 		token := r.URL.Query().Get("token")
 		if token == "" {
-			log.Println("No token provided")
+			utils.Error("No token provided")
 			http.Error(w, "Missing token", http.StatusUnauthorized)
 			return
 		}
 
+		// Validate token with auth service
 		userID, err := authclient.ValidateToken(token, authURL)
 		if err != nil {
-			log.Printf("Token validation failed: %v", err)
+			utils.Error("Token validation failed: " + err.Error())
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		log.Printf("Token valid for userID: %d", userID)
+		utils.Info("Token validated successfully for userID: " + strconv.Itoa(userID))
 
+		// Upgrade the connection to WebSocket
 		conn, err := upgraded.Upgrade(w, r, nil)
 		if err != nil {
-			log.Printf("WebSocket upgrade error: %v", err)
+			utils.Error("WebSocket upgrade error: " + err.Error())
 			return
 		}
 
+		utils.Info("WebSocket connection established")
+
+		// Assign default channel ID for now
 		channelID := 1
 		manager.RegisterClient(conn, userID, channelID, token)
+		utils.Info("Client registered: UserID=" + strconv.Itoa(userID) + ", ChannelID=" + strconv.Itoa(channelID))
+
 		go handleClientMessages(conn, manager, messageURL, userID, channelID)
-		log.Println("WebSocket connection established")
 	}
 }
 
 func handleClientMessages(conn *websocket.Conn, manager *ConnectionManager, messageURL string, userID, channelID int) {
-	defer manager.UnregisterClient(conn, channelID)
+	defer func() {
+		utils.Info("Unregistering client: UserID=" + strconv.Itoa(userID) + ", ChannelID=" + strconv.Itoa(channelID))
+		manager.UnregisterClient(conn, channelID)
+	}()
 
 	// Retrieve token from manager
 	token := manager.GetTokenForClient(conn, channelID)
@@ -61,22 +73,28 @@ func handleClientMessages(conn *websocket.Conn, manager *ConnectionManager, mess
 	for {
 		_, msgBytes, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading ws message: %v", err)
+			utils.Error("Error reading WebSocket message: " + err.Error())
 			return
 		}
 
+		// Parse the incoming message
 		var incMsg IncomingMessage
 		if err := json.Unmarshal(msgBytes, &incMsg); err != nil {
-			log.Printf("Invalid message format: %v", err)
+			utils.Error("Invalid message format: " + err.Error())
 			continue
 		}
 
+		utils.Info("Received message: ChannelID=" + strconv.Itoa(incMsg.ChannelID) + ", Content=" + incMsg.Content)
+
+		// Create and store message using the message service
 		storedMsg, err := messageclient.CreateMessage(messageURL, token, userID, incMsg.ChannelID, incMsg.Content)
 		if err != nil {
-			log.Printf("Failed to store message: %v", err)
+			utils.Error("Failed to store message: " + err.Error())
 			continue
 		}
 
+		// Broadcast the stored message to the channel
 		manager.BroadcastToChannel(incMsg.ChannelID, storedMsg)
+		utils.Info("Message broadCasted: ChannelID=" + strconv.Itoa(incMsg.ChannelID))
 	}
 }
