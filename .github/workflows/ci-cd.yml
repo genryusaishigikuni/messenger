@@ -63,10 +63,10 @@ jobs:
         run: |
           echo $HEROKU_API_KEY | docker login --username=_ --password-stdin registry.heroku.com
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Docker Images
         run: |
-          docker build -t registry.heroku.com/${{ secrets.HEROKU_APP_NAME }}/web .
-          docker push registry.heroku.com/${{ secrets.HEROKU_APP_NAME }}/web
+          docker compose -f docker-compose.yml build
+          docker compose -f docker-compose.yml push
 
       - name: Release Heroku App
         run: heroku container:release web -a ${{ secrets.HEROKU_APP_NAME }}
